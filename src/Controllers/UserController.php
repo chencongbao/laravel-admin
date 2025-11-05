@@ -2,19 +2,74 @@
 
 namespace Encore\Admin\Controllers;
 
+use Encore\Admin\Auth\Database\Administrator;
+use Encore\Admin\Auth\Database\Permission;
+use Encore\Admin\Auth\Database\Role;
 use Encore\Admin\Form;
 use Encore\Admin\Grid;
+use Encore\Admin\Layout\Content;
 use Encore\Admin\Show;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Routing\Controller;
 
-class UserController extends AdminController
+class UserController extends Controller
 {
+    use HasResourceActions;
+
     /**
-     * {@inheritdoc}
+     * Index interface.
+     *
+     * @return Content
      */
-    protected function title()
+    public function index(Content $content)
     {
-        return trans('admin.administrator');
+        return $content
+            ->header(trans('admin.administrator'))
+            ->description(trans('admin.list'))
+            ->body($this->grid()->render());
+    }
+
+    /**
+     * Show interface.
+     *
+     * @param mixed   $id
+     * @param Content $content
+     *
+     * @return Content
+     */
+    public function show($id, Content $content)
+    {
+        return $content
+            ->header(trans('admin.administrator'))
+            ->description(trans('admin.detail'))
+            ->body($this->detail($id));
+    }
+
+    /**
+     * Edit interface.
+     *
+     * @param $id
+     *
+     * @return Content
+     */
+    public function edit($id, Content $content)
+    {
+        return $content
+            ->header(trans('admin.administrator'))
+            ->description(trans('admin.edit'))
+            ->body($this->form()->edit($id));
+    }
+
+    /**
+     * Create interface.
+     *
+     * @return Content
+     */
+    public function create(Content $content)
+    {
+        return $content
+            ->header(trans('admin.administrator'))
+            ->description(trans('admin.create'))
+            ->body($this->form());
     }
 
     /**
@@ -24,16 +79,14 @@ class UserController extends AdminController
      */
     protected function grid()
     {
-        $userModel = config('admin.database.users_model');
+        $grid = new Grid(new Administrator());
 
-        $grid = new Grid(new $userModel());
-
-        $grid->column('id', 'ID')->sortable();
-        $grid->column('username', trans('admin.username'));
-        $grid->column('name', trans('admin.name'));
-        $grid->column('roles', trans('admin.roles'))->pluck('name')->label();
-        $grid->column('created_at', trans('admin.created_at'));
-        $grid->column('updated_at', trans('admin.updated_at'));
+        $grid->id('ID')->sortable();
+        $grid->username(trans('admin.username'));
+        $grid->name(trans('admin.name'));
+        $grid->roles(trans('admin.roles'))->pluck('name')->label();
+        $grid->created_at(trans('admin.created_at'));
+        $grid->updated_at(trans('admin.updated_at'));
 
         $grid->actions(function (Grid\Displayers\Actions $actions) {
             if ($actions->getKey() == 1) {
@@ -59,21 +112,19 @@ class UserController extends AdminController
      */
     protected function detail($id)
     {
-        $userModel = config('admin.database.users_model');
+        $show = new Show(Administrator::findOrFail($id));
 
-        $show = new Show($userModel::findOrFail($id));
-
-        $show->field('id', 'ID');
-        $show->field('username', trans('admin.username'));
-        $show->field('name', trans('admin.name'));
-        $show->field('roles', trans('admin.roles'))->as(function ($roles) {
+        $show->id('ID');
+        $show->username(trans('admin.username'));
+        $show->name(trans('admin.name'));
+        $show->roles(trans('admin.roles'))->as(function ($roles) {
             return $roles->pluck('name');
         })->label();
-        $show->field('permissions', trans('admin.permissions'))->as(function ($permission) {
+        $show->permissions(trans('admin.permissions'))->as(function ($permission) {
             return $permission->pluck('name');
         })->label();
-        $show->field('created_at', trans('admin.created_at'));
-        $show->field('updated_at', trans('admin.updated_at'));
+        $show->created_at(trans('admin.created_at'));
+        $show->updated_at(trans('admin.updated_at'));
 
         return $show;
     }
@@ -85,20 +136,11 @@ class UserController extends AdminController
      */
     public function form()
     {
-        $userModel = config('admin.database.users_model');
-        $permissionModel = config('admin.database.permissions_model');
-        $roleModel = config('admin.database.roles_model');
-
-        $form = new Form(new $userModel());
-
-        $userTable = config('admin.database.users_table');
-        $connection = config('admin.database.connection');
+        $form = new Form(new Administrator());
 
         $form->display('id', 'ID');
-        $form->text('username', trans('admin.username'))
-            ->creationRules(['required', "unique:{$connection}.{$userTable}"])
-            ->updateRules(['required', "unique:{$connection}.{$userTable},username,{{id}}"]);
 
+        $form->text('username', trans('admin.username'))->rules('required');
         $form->text('name', trans('admin.name'))->rules('required');
         $form->image('avatar', trans('admin.avatar'));
         $form->password('password', trans('admin.password'))->rules('required|confirmed');
@@ -109,15 +151,15 @@ class UserController extends AdminController
 
         $form->ignore(['password_confirmation']);
 
-        $form->multipleSelect('roles', trans('admin.roles'))->options($roleModel::all()->pluck('name', 'id'));
-        $form->multipleSelect('permissions', trans('admin.permissions'))->options($permissionModel::all()->pluck('name', 'id'));
+        $form->multipleSelect('roles', trans('admin.roles'))->options(Role::all()->pluck('name', 'id'));
+        $form->multipleSelect('permissions', trans('admin.permissions'))->options(Permission::all()->pluck('name', 'id'));
 
         $form->display('created_at', trans('admin.created_at'));
         $form->display('updated_at', trans('admin.updated_at'));
 
         $form->saving(function (Form $form) {
             if ($form->password && $form->model()->password != $form->password) {
-                $form->password = Hash::make($form->password);
+                $form->password = bcrypt($form->password);
             }
         });
 

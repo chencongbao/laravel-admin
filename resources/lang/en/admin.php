@@ -20,7 +20,6 @@ return [
     'edit'                  => 'Edit',
     'view'                  => 'View',
     'continue_editing'      => 'Continue editing',
-    'continue_creating'     => 'Continue creating',
     'detail'                => 'Detail',
     'browse'                => 'Browse',
     'reset'                 => 'Reset',
@@ -98,10 +97,6 @@ return [
         'filter_clear'       => 'Show all',
         'filter_placeholder' => 'Filter',
     ],
-    'grid_items_selected'    => '{n} items selected',
 
-    'menu_titles'            => [],
-    'prev'                   => 'Prev',
-    'next'                   => 'Next',
-    'quick_create'           => 'Quick create',
+    'menu_titles' => [],
 ];

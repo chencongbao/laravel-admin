@@ -20,7 +20,6 @@ return [
     'edit'                  => 'Редактировать',
     'view'                  => 'Посмотреть',
     'continue_editing'      => 'Продолжить редактировать',
-    'continue_creating'     => 'Продолжить создание',
     'detail'                => 'Подробно',
     'browse'                => 'Выбор файла',
     'reset'                 => 'Сбросить',
@@ -98,10 +97,6 @@ return [
         'filter_clear'       => 'Показать все',
         'filter_placeholder' => 'Фильтр',
     ],
-    'grid_items_selected'    => '{n} элементов выбрано',
 
-    'menu_titles'            => [],
-    'prev'                   => 'Предыдущая',
-    'next'                   => 'Следующая',
-    'quick_create'           => 'Быстрое добавление',
+    'menu_titles' => [],
 ];

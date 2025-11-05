@@ -4,7 +4,6 @@ namespace Encore\Admin\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Str;
 
 class ExtendCommand extends Command
 {
@@ -81,7 +80,7 @@ class ExtendCommand extends Command
         }
 
         if (!file_exists($this->extensionDir)) {
-            $this->makeDir();
+            goto InputExtensionDir;
         }
 
         $this->package = $this->argument('extension');
@@ -157,7 +156,7 @@ TREE;
         // make class
         $classContents = str_replace(
             [':namespace', ':class_name', ':title', ':path', ':base_package'],
-            [$this->namespace, $this->className, Str::title($this->className), basename($this->package), basename($this->package)],
+            [$this->namespace, $this->className, title_case($this->className), basename($this->package), basename($this->package)],
             file_get_contents(__DIR__.'/stubs/extension/extension.stub')
         );
         $this->putFile("src/{$this->className}.php", $classContents);
@@ -197,7 +196,7 @@ TREE;
         if (!$namespace = $this->option('namespace')) {
             list($vendor, $name) = explode('/', $this->package);
 
-            $default = str_replace(['-', '-'], '', Str::title($vendor).'\\'.Str::title($name));
+            $default = str_replace(['-', '-'], '', title_case($vendor).'\\'.title_case($name));
 
             $namespace = $this->ask('Root namespace', $default);
         }
@@ -234,7 +233,7 @@ TREE;
      */
     protected function validateExtensionName($name)
     {
-        return preg_match('/^[\w\-_]+\/[\w\-_]+$/', $name);
+        return preg_match('/^[\w-_]+\/[\w-_]+$/', $name);
     }
 
     /**
@@ -298,7 +297,7 @@ TREE;
      *
      * @param array|string $paths
      */
-    protected function makeDir($paths = '')
+    protected function makeDir($paths)
     {
         foreach ((array) $paths as $path) {
             $path = $this->extensionPath($path);

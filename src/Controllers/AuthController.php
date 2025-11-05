@@ -2,23 +2,19 @@
 
 namespace Encore\Admin\Controllers;
 
+use Encore\Admin\Auth\Database\Administrator;
 use Encore\Admin\Facades\Admin;
 use Encore\Admin\Form;
 use Encore\Admin\Layout\Content;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Lang;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
-    /**
-     * @var string
-     */
-    protected $loginView = 'admin::login';
-
     /**
      * Show the login page.
      *
@@ -30,7 +26,7 @@ class AuthController extends Controller
             return redirect($this->redirectPath());
         }
 
-        return view($this->loginView);
+        return view('admin::login');
     }
 
     /**
@@ -42,32 +38,24 @@ class AuthController extends Controller
      */
     public function postLogin(Request $request)
     {
-        $this->loginValidator($request->all())->validate();
-
         $credentials = $request->only([$this->username(), 'password']);
-        $remember = $request->get('remember', false);
 
-        if ($this->guard()->attempt($credentials, $remember)) {
+        /** @var \Illuminate\Validation\Validator $validator */
+        $validator = Validator::make($credentials, [
+            $this->username()   => 'required',
+            'password'          => 'required',
+        ]);
+
+        if ($validator->fails()) {
+            return back()->withInput()->withErrors($validator);
+        }
+
+        if ($this->guard()->attempt($credentials)) {
             return $this->sendLoginResponse($request);
         }
 
         return back()->withInput()->withErrors([
             $this->username() => $this->getFailedLoginMessage(),
-        ]);
-    }
-
-    /**
-     * Get a validator for an incoming login request.
-     *
-     * @param array $data
-     *
-     * @return \Illuminate\Contracts\Validation\Validator
-     */
-    protected function loginValidator(array $data)
-    {
-        return Validator::make($data, [
-            $this->username()   => 'required',
-            'password'          => 'required',
         ]);
     }
 
@@ -98,13 +86,11 @@ class AuthController extends Controller
         $form->tools(
             function (Form\Tools $tools) {
                 $tools->disableList();
-                $tools->disableDelete();
-                $tools->disableView();
             }
         );
 
         return $content
-            ->title(trans('admin.user_setting'))
+            ->header(trans('admin.user_setting'))
             ->body($form->edit(Admin::user()->id));
     }
 
@@ -125,9 +111,7 @@ class AuthController extends Controller
      */
     protected function settingForm()
     {
-        $class = config('admin.database.users_model');
-
-        $form = new Form(new $class());
+        $form = new Form(new Administrator());
 
         $form->display('username', trans('admin.username'));
         $form->text('name', trans('admin.name'))->rules('required');
@@ -138,20 +122,20 @@ class AuthController extends Controller
                 return $form->model()->password;
             });
 
-        $form->setAction(admin_url('auth/setting'));
+        $form->setAction(admin_base_path('auth/setting'));
 
         $form->ignore(['password_confirmation']);
 
         $form->saving(function (Form $form) {
             if ($form->password && $form->model()->password != $form->password) {
-                $form->password = Hash::make($form->password);
+                $form->password = bcrypt($form->password);
             }
         });
 
         $form->saved(function () {
             admin_toastr(trans('admin.update_succeeded'));
 
-            return redirect(admin_url('auth/setting'));
+            return redirect(admin_base_path('auth/setting'));
         });
 
         return $form;
@@ -186,7 +170,7 @@ class AuthController extends Controller
      *
      * @param \Illuminate\Http\Request $request
      *
-     * @return \Illuminate\Http\RedirectResponse
+     * @return \Illuminate\Http\Response
      */
     protected function sendLoginResponse(Request $request)
     {
@@ -214,6 +198,6 @@ class AuthController extends Controller
      */
     protected function guard()
     {
-        return Admin::guard();
+        return Auth::guard('admin');
     }
 }

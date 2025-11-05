@@ -20,7 +20,7 @@ class DateRange extends Field
     /**
      * Column name.
      *
-     * @var array
+     * @var string
      */
     protected $column = [];
 
@@ -36,9 +36,6 @@ class DateRange extends Field
         $this->options(['format' => $this->format]);
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function prepare($value)
     {
         if ($value === '') {
@@ -50,7 +47,7 @@ class DateRange extends Field
 
     public function render()
     {
-        $this->options['locale'] = array_key_exists('locale', $this->options) ? $this->options['locale'] : config('app.locale');
+        $this->options['locale'] = config('app.locale');
 
         $startOptions = json_encode($this->options);
         $endOptions = json_encode($this->options + ['useCurrent' => false]);

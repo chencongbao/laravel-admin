@@ -3,15 +3,12 @@
 namespace Encore\Admin\Show;
 
 use Encore\Admin\Show;
-use Encore\Admin\Widgets\Carousel;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Contracts\Support\Renderable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Support\Traits\Macroable;
 
 class Field implements Renderable
@@ -38,23 +35,6 @@ class Field implements Renderable
      * @var string
      */
     protected $label;
-
-    /**
-     * Width for label and field.
-     *
-     * @var array
-     */
-    protected $width = [
-        'label' => 2,
-        'field' => 8,
-    ];
-
-    /**
-     * Escape field value or not.
-     *
-     * @var bool
-     */
-    protected $escape = true;
 
     /**
      * Field value.
@@ -87,7 +67,7 @@ class Field implements Renderable
      *
      * @var bool
      */
-    public $border = true;
+    public $wrapped = true;
 
     /**
      * @var array
@@ -197,7 +177,7 @@ class Field implements Renderable
                 return $default;
             }
 
-            return Arr::get($values, $value, $default);
+            return array_get($values, $value, $default);
         });
     }
 
@@ -212,68 +192,26 @@ class Field implements Renderable
      */
     public function image($server = '', $width = 200, $height = 200)
     {
-        return $this->unescape()->as(function ($images) use ($server, $width, $height) {
-            return collect($images)->map(function ($path) use ($server, $width, $height) {
-                if (empty($path)) {
+        return $this->as(function ($path) use ($server, $width, $height) {
+            if (empty($path)) {
+                return '';
+            }
+
+            if (url()->isValidUrl($path)) {
+                $src = $path;
+            } elseif ($server) {
+                $src = $server.$path;
+            } else {
+                $disk = config('admin.upload.disk');
+
+                if (config("filesystems.disks.{$disk}")) {
+                    $src = Storage::disk($disk)->url($path);
+                } else {
                     return '';
                 }
+            }
 
-                if (url()->isValidUrl($path)) {
-                    $src = $path;
-                } elseif ($server) {
-                    $src = $server.$path;
-                } else {
-                    $disk = config('admin.upload.disk');
-
-                    if (config("filesystems.disks.{$disk}")) {
-                        $src = Storage::disk($disk)->url($path);
-                    } else {
-                        return '';
-                    }
-                }
-
-                return "<img src='$src' style='max-width:{$width}px;max-height:{$height}px' class='img' />";
-            })->implode('&nbsp;');
-        });
-    }
-
-    /**
-     * Show field as a carousel.
-     *
-     * @param int    $width
-     * @param int    $height
-     * @param string $server
-     *
-     * @return Field
-     */
-    public function carousel($width = 300, $height = 200, $server = '')
-    {
-        return $this->unescape()->as(function ($images) use ($server, $width, $height) {
-            $items = collect($images)->map(function ($path) use ($server, $width, $height) {
-                if (empty($path)) {
-                    return '';
-                }
-
-                if (url()->isValidUrl($path)) {
-                    $image = $path;
-                } elseif ($server) {
-                    $image = $server.$path;
-                } else {
-                    $disk = config('admin.upload.disk');
-
-                    if (config("filesystems.disks.{$disk}")) {
-                        $image = Storage::disk($disk)->url($path);
-                    } else {
-                        $image = '';
-                    }
-                }
-
-                $caption = '';
-
-                return compact('image', 'caption');
-            });
-
-            return (new Carousel($items))->width($width)->height($height);
+            return "<img src='$src' style='max-width:{$width}px;max-height:{$height}px' class='img' />";
         });
     }
 
@@ -289,10 +227,10 @@ class Field implements Renderable
     {
         $field = $this;
 
-        return $this->unescape()->as(function ($path) use ($server, $download, $field) {
+        return $this->as(function ($path) use ($server, $download, $field) {
             $name = basename($path);
 
-            $field->border = false;
+            $field->wrapped = false;
 
             $size = $url = '';
 
@@ -308,12 +246,6 @@ class Field implements Renderable
                 }
             }
 
-            if (!$url) {
-                return '';
-            }
-
-            $download = $download ? "download='$name'" : '';
-
             return <<<HTML
 <ul class="mailbox-attachments clearfix">
     <li style="margin-bottom: 0;">
@@ -324,7 +256,7 @@ class Field implements Renderable
             </div>
             <span class="mailbox-attachment-size">
               {$size}&nbsp;
-              <a href="{$url}" class="btn btn-default btn-xs pull-right" target="_blank" $download><i class="fa fa-cloud-download"></i></a>
+              <a href="{$url}" class="btn btn-default btn-xs pull-right" target="_blank"><i class="fa fa-cloud-download"></i></a>
             </span>
       </div>
     </li>
@@ -343,7 +275,7 @@ HTML;
      */
     public function link($href = '', $target = '_blank')
     {
-        return $this->unescape()->as(function ($link) use ($href, $target) {
+        return $this->as(function ($link) use ($href, $target) {
             $href = $href ?: $link;
 
             return "<a href='$href' target='{$target}'>{$link}</a>";
@@ -359,7 +291,7 @@ HTML;
      */
     public function label($style = 'success')
     {
-        return $this->unescape()->as(function ($value) use ($style) {
+        return $this->as(function ($value) use ($style) {
             if ($value instanceof Arrayable) {
                 $value = $value->toArray();
             }
@@ -379,7 +311,7 @@ HTML;
      */
     public function badge($style = 'blue')
     {
-        return $this->unescape()->as(function ($value) use ($style) {
+        return $this->as(function ($value) use ($style) {
             if ($value instanceof Arrayable) {
                 $value = $value->toArray();
             }
@@ -387,22 +319,6 @@ HTML;
             return collect((array) $value)->map(function ($name) use ($style) {
                 return "<span class='badge bg-{$style}'>$name</span>";
             })->implode('&nbsp;');
-        });
-    }
-
-    /**
-     * Show field as number.
-     *
-     * @param int    $decimals
-     * @param string $decimal_seperator
-     * @param string $thousands_seperator
-     *
-     * @return Field
-     */
-    public function number($decimals = 0, $decimal_seperator = '.', $thousands_seperator = ',')
-    {
-        return $this->unescape()->as(function ($value) use ($decimals, $decimal_seperator, $thousands_seperator) {
-            return number_format($value, $decimals, $decimal_seperator, $thousands_seperator);
         });
     }
 
@@ -415,32 +331,16 @@ HTML;
     {
         $field = $this;
 
-        return $this->unescape()->as(function ($value) use ($field) {
-            if (is_string($value)) {
-                $content = json_decode($value, true);
-            } else {
-                $content = $value;
-            }
+        return $this->as(function ($value) use ($field) {
+            $content = json_decode($value, true);
 
             if (json_last_error() == 0) {
-                $field->border = false;
+                $field->wrapped = false;
 
-                return '<pre><code>'.json_encode($content, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE).'</code></pre>';
+                return '<pre><code>'.json_encode($content, JSON_PRETTY_PRINT).'</code></pre>';
             }
 
             return $value;
-        });
-    }
-
-    /**
-     * Show readable filesize for giving integer size.
-     *
-     * @return Field
-     */
-    public function filesize()
-    {
-        return $this->as(function ($value) {
-            return file_size($value);
         });
     }
 
@@ -465,30 +365,6 @@ HTML;
     }
 
     /**
-     * Set escape or not for this field.
-     *
-     * @param bool $escape
-     *
-     * @return $this
-     */
-    public function setEscape($escape = true)
-    {
-        $this->escape = $escape;
-
-        return $this;
-    }
-
-    /**
-     * Unescape for this field.
-     *
-     * @return Field
-     */
-    public function unescape()
-    {
-        return $this->setEscape(false);
-    }
-
-    /**
      * Set value for this field.
      *
      * @param Model $model
@@ -498,17 +374,13 @@ HTML;
     public function setValue(Model $model)
     {
         if ($this->relation) {
-            if (!$relationValue = $model->{$this->relation}) {
+            if (!$model->{$this->relation}) {
                 return $this;
             }
 
-            $this->value = $relationValue;
+            $this->value = $model->{$this->relation}->getAttribute($this->name);
         } else {
-            if (Str::contains($this->name, '.')) {
-                $this->value = $this->getRelationValue($model, $this->name);
-            } else {
-                $this->value = $model->getAttribute($this->name);
-            }
+            $this->value = $model->getAttribute($this->name);
         }
 
         return $this;
@@ -529,86 +401,6 @@ HTML;
     }
 
     /**
-     * @param Model  $model
-     * @param string $name
-     *
-     * @return mixed
-     */
-    protected function getRelationValue($model, $name)
-    {
-        list($relation, $key) = explode('.', $name);
-
-        if ($related = $model->getRelationValue($relation)) {
-            return $related->getAttribute($key);
-        }
-    }
-
-    /**
-     * Set width for field and label.
-     *
-     * @param int $field
-     * @param int $label
-     *
-     * @return $this
-     */
-    public function setWidth($field = 8, $label = 2)
-    {
-        $this->width = [
-            'label' => $label,
-            'field' => $field,
-        ];
-
-        return $this;
-    }
-
-    /**
-     * Call extended field.
-     *
-     * @param string|AbstractField|\Closure $abstract
-     * @param array                         $arguments
-     *
-     * @return Field
-     */
-    protected function callExtendedField($abstract, $arguments = [])
-    {
-        if ($abstract instanceof \Closure) {
-            return $this->as($abstract);
-        }
-
-        if (is_string($abstract) && class_exists($abstract)) {
-            /** @var AbstractField $extend */
-            $extend = new $abstract();
-        }
-
-        if ($abstract instanceof AbstractField) {
-            /** @var AbstractField $extend */
-            $extend = $abstract;
-        }
-
-        if (!isset($extend)) {
-            admin_warning("[$abstract] is not a valid Show field.");
-
-            return $this;
-        }
-
-        if (!$extend->escape) {
-            $this->unescape();
-        }
-
-        $field = $this;
-
-        return $this->as(function ($value) use ($extend, $field, $arguments) {
-            if (!$extend->border) {
-                $field->border = false;
-            }
-
-            $extend->setValue($value)->setModel($this);
-
-            return $extend->render(...$arguments);
-        });
-    }
-
-    /**
      * @param string $method
      * @param array  $arguments
      *
@@ -616,17 +408,13 @@ HTML;
      */
     public function __call($method, $arguments = [])
     {
-        if ($class = Arr::get(Show::$extendedFields, $method)) {
-            return $this->callExtendedField($class, $arguments);
-        }
-
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $arguments);
         }
 
         if ($this->relation) {
             $this->name = $method;
-            $this->label = $this->formatLabel(Arr::get($arguments, 0));
+            $this->label = $this->formatLabel(array_get($arguments, 0));
         }
 
         return $this;
@@ -641,10 +429,8 @@ HTML;
     {
         return [
             'content'   => $this->value,
-            'escape'    => $this->escape,
             'label'     => $this->getLabel(),
-            'wrapped'   => $this->border,
-            'width'     => $this->width,
+            'wrapped'   => $this->wrapped,
         ];
     }
 

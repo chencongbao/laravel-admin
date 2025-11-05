@@ -85,7 +85,7 @@ class Tree implements Renderable
     {
         $this->model = $model;
 
-        $this->path = \request()->getPathInfo();
+        $this->path = app('request')->getPathInfo();
         $this->elementId .= uniqid();
 
         $this->setupTools();
@@ -219,18 +219,14 @@ class Tree implements Renderable
      */
     protected function script()
     {
-        $trans = [
-            'delete_confirm'    => str_replace("'", "\'", trans('admin.delete_confirm')),
-            'save_succeeded'    => str_replace("'", "\'", trans('admin.save_succeeded')),
-            'refresh_succeeded' => str_replace("'", "\'", trans('admin.refresh_succeeded')),
-            'delete_succeeded'  => str_replace("'", "\'", trans('admin.delete_succeeded')),
-            'confirm'           => str_replace("'", "\'", trans('admin.confirm')),
-            'cancel'            => str_replace("'", "\'", trans('admin.cancel')),
-        ];
+        $deleteConfirm = trans('admin.delete_confirm');
+        $saveSucceeded = trans('admin.save_succeeded');
+        $refreshSucceeded = trans('admin.refresh_succeeded');
+        $deleteSucceeded = trans('admin.delete_succeeded');
+        $confirm = trans('admin.confirm');
+        $cancel = trans('admin.cancel');
 
         $nestableOptions = json_encode($this->nestableOptions);
-
-        $url = url($this->path);
 
         return <<<SCRIPT
 
@@ -239,25 +235,25 @@ class Tree implements Renderable
         $('.tree_branch_delete').click(function() {
             var id = $(this).data('id');
             swal({
-                title: "{$trans['delete_confirm']}",
+                title: "$deleteConfirm",
                 type: "warning",
                 showCancelButton: true,
                 confirmButtonColor: "#DD6B55",
-                confirmButtonText: "{$trans['confirm']}",
+                confirmButtonText: "$confirm",
                 showLoaderOnConfirm: true,
-                cancelButtonText: "{$trans['cancel']}",
+                cancelButtonText: "$cancel",
                 preConfirm: function() {
                     return new Promise(function(resolve) {
                         $.ajax({
                             method: 'post',
-                            url: '{$url}/' + id,
+                            url: '{$this->path}/' + id,
                             data: {
                                 _method:'delete',
                                 _token:LA.token,
                             },
                             success: function (data) {
                                 $.pjax.reload('#pjax-container');
-                                toastr.success('{$trans['delete_succeeded']}');
+
                                 resolve(data);
                             }
                         });
@@ -278,23 +274,24 @@ class Tree implements Renderable
         $('.{$this->elementId}-save').click(function () {
             var serialize = $('#{$this->elementId}').nestable('serialize');
 
-            $.post('{$url}', {
+            $.post('{$this->path}', {
                 _token: LA.token,
                 _order: JSON.stringify(serialize)
             },
             function(data){
                 $.pjax.reload('#pjax-container');
-                toastr.success('{$trans['save_succeeded']}');
+                toastr.success('{$saveSucceeded}');
             });
         });
 
         $('.{$this->elementId}-refresh').click(function () {
             $.pjax.reload('#pjax-container');
-            toastr.success('{$trans['refresh_succeeded']}');
+            toastr.success('{$refreshSucceeded}');
         });
 
         $('.{$this->elementId}-tree-tools').on('click', function(e){
-            var action = $(this).data('action');
+            var target = $(e.target),
+                action = target.data('action');
             if (action === 'expand') {
                 $('.dd').nestable('expandAll');
             }
@@ -320,7 +317,7 @@ SCRIPT;
     /**
      * Return all items of the tree.
      *
-     * @return array
+     * @param array $items
      */
     public function getItems()
     {
