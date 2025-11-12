@@ -406,24 +406,91 @@ class Form implements Renderable
 
         /** @var Field $field */
         foreach ($this->fields() as $field) {
-            if (!\request()->has($field->column())) {
+
+            // 只处理本次请求里真的提交了的字段
+            $column = $field->column();
+
+            // string 列：常规字段
+            if (is_string($column)) {
+                if (!\request()->has($column)) {
+                    continue;
+                }
+
+                try {
+                    // 用 fresh() 取最新值；支持 Arrayable
+                    $newValue = $this->model->fresh()->getAttribute($column);
+                } catch (\Throwable $e) {
+                    $newValue = null;
+                }
+
+                if ($newValue instanceof \Illuminate\Contracts\Support\Arrayable) {
+                    $newValue = $newValue->toArray();
+                }
+
+                // 处理可选关联字段的展示
+                if ($field instanceof Field\BelongsTo || $field instanceof Field\BelongsToMany) {
+                    $selectable = $field->getSelectable();
+                    if ($selectable && method_exists($selectable, 'display')) {
+                        $display = $selectable::display();
+                        $editable[$column] = $display->call($this->model, $newValue);
+                        continue;
+                    }
+                }
+
+                // 普通字段直接回写
+                $editable[$column] = $newValue;
                 continue;
             }
 
-            $newValue = $this->model->fresh()->getAttribute($field->column());
+            // array 列：如 dateRange(['begin_time','end_time']) / 复合字段
+            if (is_array($column)) {
 
-            if ($newValue instanceof Arrayable) {
-                $newValue = $newValue->toArray();
-            }
-
-            if ($field instanceof Field\BelongsTo || $field instanceof Field\BelongsToMany) {
-                $selectable = $field->getSelectable();
-
-                if (method_exists($selectable, 'display')) {
-                    $display = $selectable::display();
-
-                    $editable[$field->column()] = $display->call($this->model, $newValue);
+                // 判断是否有任何一个子字段在请求里
+                $present = false;
+                foreach ($column as $child) {
+                    if (\request()->has($child)) {
+                        $present = true;
+                        break;
+                    }
                 }
+                if (!$present) {
+                    continue;
+                }
+
+                $fresh = $this->model->fresh();
+
+                foreach ($column as $name => $child) {
+                    try {
+                        // 使用 data_get 支持点语法
+                        $val = \Illuminate\Support\Arr::get($fresh, $child);
+                        if (method_exists($fresh, 'getAttribute') && $val === null) {
+                            $val = $fresh->getAttribute($child);
+                        }
+                    } catch (\Throwable $e) {
+                        $val = null;
+                    }
+
+                    if ($val instanceof \Illuminate\Contracts\Support\Arrayable) {
+                        $val = $val->toArray();
+                    }
+
+                    $editable[$child] = $val;
+                }
+
+                // 如果是关联选择字段的数组形式（极少数自定义场景），也尝试 display 转换
+                if ($field instanceof Field\BelongsTo || $field instanceof Field\BelongsToMany) {
+                    $selectable = $field->getSelectable();
+                    if ($selectable && method_exists($selectable, 'display')) {
+                        $display = $selectable::display();
+                        foreach ($column as $child) {
+                            if (array_key_exists($child, $editable)) {
+                                $editable[$child] = $display->call($this->model, $editable[$child]);
+                            }
+                        }
+                    }
+                }
+
+                continue;
             }
         }
 
